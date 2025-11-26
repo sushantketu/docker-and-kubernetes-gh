@@ -1,20 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: my-node-app-deployment
-  namespace: node-app
+  name: nodejs-app-deployment
+  labels:
+        app: nodejs-app
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
-      app: my-node-app
+      app: nodejs-app
   template:
     metadata:
       labels:
-        app: my-node-app
+        app: nodejs-app
     spec:
       containers:
-      - name: my-node-app
-        image: us-central1-docker.pkg.dev/civil-hope-479014-k8/real-world-devops/nodejs-app:v1
+      - name: nodejs-app
+        image: us-central1-docker.pkg.dev/PROJECT_ID/REPOSITORY/IMAGE:TAG
         ports:
         - containerPort: 8080

@@ -1,0 +1,62 @@
+name : Build and Deploy to GKE
+
+on:
+  push:
+    branches:
+     - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID}}
+  GKE_CLUSTER: kubecon-cluster
+  GKE_REGION: us-central1
+  REGION: us-central1
+  GAR_REPOSITORY: real-world-devops
+  IMAGE: nodejs-app
+
+jobs:
+  setup-build-publish-deploy:
+  name: Setup, Build, Publihs, and Deploy
+  runs-on: ubuntu-latest
+  environment: production
+
+  steps:
+  - name: Checkout
+    uses: actions/checkout@v3
+
+  # Setup gcloud CLI
+  - id: 'auth'
+    uses: 'google-github-actions/auth@v1'
+    with:
+      credentials_json: '${{ secrets.GCP_SA_KEY}}'
+
+  - name: 'Set up Cloud SDK'
+    uses: 'google-github-actions/setup-gcloud@v1'
+
+  #Configure Docker to use the gcloud command-line tool as a credentials helper for the AR
+  - name: Configure Docker
+    run: |
+      gcloud --quiet auth configure-docker "$REGION-docker.pkg.dev"
+
+  #Build the Docker image
+  - name: Build
+    run: |
+      docker build --tag "$REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE:$GITHUB_SHA" .
+
+  #Push the Docker image to AR
+  - name: Publish
+    run |
+      docker push "$REGION-docker.pkg.dev/$PROJECT_ID/$GAR_REPOSITORY/$IMAGE:$GITHUB_SHA"
+
+  #Get the GKE credentials
+  - name: Get GKE credentials
+    run: gcloud container clusters get-credentials "$GKE_CLUSTER" --region "$GKE_REGION" --project "$PROJECT_ID"
+
+  #Update the deployment with the new image
+  - name: Update Deployment image
+    run: |
+      sed -i "s|us-central1-docker.pkg.dev/PROJECT_ID/REPOSITORY/IMAGE:TAG|$REGION-docker.pkg.dev/$PROJECT_ID/$GAR_REPOSITORY/$IMAGE:$GITHUB_SHA|g" deployment.yaml
+      kubectl apply -f deployment.yaml
+      kubectl apply -f service.yaml
+      kubectl rollout status deployment/nodejs-app-deployment
+
+      
